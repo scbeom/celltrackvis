@@ -1,0 +1,2358 @@
+<!DOCTYPE html>
+<html lang="kr">
+
+<head>
+    <title>CellTrackVis</title>
+    <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.0.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js" type="text/javascript"></script>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script src="./tiff.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@5.9.55/css/materialdesignicons.min.css"></link>
+    <link href="style.css" rel="stylesheet">
+</head>
+
+<body>
+<div class="title" onclick="location.reload()" style="cursor: default;">CellTrackVis: Interactive Browser-based Visualization for Analyzing Cell Trajectories and Lineages</div>
+<div class="content">
+    <div class="content-left">
+        <div class="content-left-top">
+            <div class="content-left-left">
+                <div class="file-row">
+                    <select id="data_file">
+                        <option value='data/synthetic.csv' selected>synthetic.csv</option>
+                    </select>
+                    <button id="SelectData" onclick="main_proc()">Load</button>
+                </div>
+                <div class="file-add-row">
+                    <label for="new_file">Trajectory</label>
+                    <input type="file" id="new_file" name="new_file" accept=".json, .csv"><br>
+                    <label for="new_stat_file">Statistic</label>
+                    <input type="file" id="new_statistic_file" name="new_statistic_file" accept=".csv"><br>
+                    <div>
+                        <label for="new_image">Image</label>
+                        <input type="file" id="new_image" name="new_image" webkitdirectory>
+                        <div class="tif_img_cont" style="display: none; float: right;">
+                            <span id="prev" style="font-weight:bold; margin-right: 0.3em; cursor:default;"><<</span>
+                            <span id="current_tif_page"></span>
+                            <span>/</span>
+                            <span id="total_tif_page"></span>
+                            <span id="next" style="font-weight:bold; margin-left: 0.3em; cursor:default;">>></span>
+                        </div>
+                    </div>
+
+                </div>
+                <div class="mode-row">
+                    <div class="ui_title">[MODE]</div>
+                    <select id="mode">
+                        <option value='normal'>Normal</option>
+                        <!-- <option value='drag'>Drag</option> -->
+                        <option value='split'>Split</option>
+                    </select>
+                </div>
+                <div class="keymap-row">
+                    <div class="ui_title">[Keymap]</div>
+                    <div>
+                        H: horizontal, V: vertical, M: merge, S: selection
+                    </div>
+                </div>
+                <div class="mode-detail-row">
+                    current: <span id="mode-detail"></span>
+                    <!-- <label><input type="radio" name="splitmode" value="vertical" checked="checked" />Vertical</label>
+                    <label><input type="radio" name="splitmode" value="horizontal" />Horizontal</label>
+                    <label id="merge" style="background-color: aquamarine;">Merge</Em></label> -->
+                </div>
+                <div class="opacity-row">
+                    <label>Image<input type="range" min="1" max="100" value="70" id="opacity"></label>
+                    <label>Circle<input type="range" min="1" max="20" value="10" id="circleSize"></label>
+                    <label>Thickness<input type="range" min="10" max="50" value="10" id="thickness"></label>
+                </div>
+                <div class="option-row">
+                    <div class="ui_title">[OPTION]</div>
+                    <label>Cell point<input id="object" type="checkbox" name="isobject" value="object"
+                                            checked="checked"></label>
+                    <label>All points<input id="allpoint" type="checkbox" name="isallpoint" value="allpoint"
+                    ></label>
+                    <label>Cell label<input id="birth" type="checkbox" name="isbirth" value="birth"
+                                         checked="checked"></label>
+                    <label>Cell vector<input id="vector" type="checkbox" name="isvector" value="vector"
+                                             checked="checked"></label>
+                    <label>Cell trajectory<input id="route" type="checkbox" name="isroute" value="route"
+                                                 checked="checked"></label>
+                    <!-- <label>RouteVector<input id="routevector" type="checkbox" name="isroutevector"
+                            value="routevector" checked="checked"></label> -->
+                    <label>All trajectories<input id="VAPN" type="checkbox" name="isvapn"
+                                                  value="VAPN"></label>
+                    <label>Map grid<input id="grid" type="checkbox" name="isgrid" value="grid"
+                                          checked="checked"></label>
+
+                </div>
+                <svg id="svgMinimap">
+                    <image />
+                    <g id="stageMinimap"></g>
+                    <g id="gBrush"></g>
+                </svg>
+                <g id="histograms"></g>
+            </div>
+            <div class="content-main">
+                <svg style="float:left;background:black;"></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" version="1.1" width=0 height=0>
+                    <defs>
+                        <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6"
+                                orient="auto-start-reverse">
+                            <path id="tri" d="M 0 0 L 10 5 L 0 10 z" fill="white" />
+                    </defs>
+                </svg>
+                <svg xmlns="http://www.w3.org/2000/svg" version="1.1" width=0 height=0>
+                    <defs>
+                        <marker id="arrow_green" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6"
+                                markerHeight="6" orient="auto-start-reverse">
+                            <path id="tri" d="M 0 0 L 10 5 L 0 10 z" fill="green" />
+                    </defs>
+                </svg>
+                <svg xmlns="http://www.w3.org/2000/svg" version="1.1" width=0 height=0>
+                    <defs>
+                        <marker id="arrow_red" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6"
+                                markerHeight="6" orient="auto-start-reverse">
+                            <path id="tri" d="M 0 0 L 10 5 L 0 10 z" fill="red" />
+                    </defs>
+                </svg>
+            </div>
+        </div>
+        <div class="statistics">
+            <div class="statistics-left">
+            </div>
+            <div id="statistics1"></div>
+        </div>
+    </div>
+
+    <div class="content-right">
+        <div class="button-row">
+            <span id="play" class="mdi mdi-play"></span>
+            <span id="pause" class="mdi mdi-pause"></span>
+            <span id="stop" class="mdi mdi-stop"></span>
+        </div>
+        <div class="play-range">
+            <div class="fromto"><span id="from">1</span><span id="to">100</span></div>
+            <input type="range" min="0" max="99" value="50" class="slider" id="myRange">
+            <div class="minmax"><span>1</span><span id="max">100</span></div>
+            <span class="count"></span>
+        </div>
+        <div id="lineageX"></div>
+        <div id="lineage"></div>
+    </div>
+</div>
+
+
+<script type="text/javascript">
+    let clicked_file =false;
+    let clicked_img = false;
+    document.getElementById('new_file').addEventListener('change', function (e) {
+        // console.log(this.files);
+        const file = this.files[0];
+        const data_file = document.getElementById('data_file');
+        data_file.options[data_file.options.length] = new Option(file.name, 'data/' + file.name, true,
+            true);
+        clicked_file = true;
+        main_proc();
+    });
+
+    document.getElementById('new_statistic_file').addEventListener('change', function (e) {
+        stat_proc('data/' + this.files[0].name);
+    })
+
+    let image_files = [];
+    let arr_tiffs = [];
+
+    let maxtime = 100
+
+    let time = 0;
+    let timer = null;
+    let from = 1;
+    let to = maxtime;
+    let img_w=1000, img_h=1000;
+
+    $('#from').draggable({
+        axis: 'x'
+    });
+    $('#to').draggable({
+        axis: 'x'
+    });
+
+    $('#from').on({
+        'drag': function (e) {
+            const width = document.getElementsByClassName('play-range')[0].offsetWidth -
+                20;
+            const left = e.target.offsetLeft - e.target.parentNode.offsetLeft;
+            e.target.style.left = `${left / width * maxtime}px`;
+            from = parseInt(left / width * maxtime);
+            e.target.innerHTML = from;
+            clearInterval(timer);
+            timer = null;
+        }
+    })
+
+    $('#to').on({
+        'drag': function (e) {
+            const width = document.getElementsByClassName('play-range')[0].offsetWidth -
+                20;
+            const left = e.target.offsetLeft - e.target.parentNode.offsetLeft;
+            e.target.style.left = `${left / width * maxtime}px`;
+            to = parseInt(left / width * maxtime);
+            // e.target.style.left = `${left / width * 100.0}px`;
+            // to = parseInt(left / width * 100.0);
+            e.target.innerHTML = to;
+            clearInterval(timer);
+            timer = null;
+        }
+    })
+
+    function stat_proc(file='data/synthetic_stats.csv') {
+        const splitted = file.split('.')
+        const ext = splitted[splitted.length-1];
+        (ext === 'json' ? d3.json(file) : d3.csv(file))
+            .then((data) => {
+                const stat_width = 1100
+                const stat_height = 300
+                const stat_margin = ({
+                    top: 20,
+                    right: 30,
+                    bottom: 30,
+                    left: 40
+                })
+                let stat = data;
+                if(ext === 'csv') {
+                    if(data.length === 0) return;
+                    stat = data.reduce((acc, cur) => {
+                        for(let key in cur) {
+                            if(key.toLowerCase() === 'time') continue; // exclude time
+                            if(!acc[key]) acc[key] = [cur[key]];
+                            else acc[key].push(cur[key]);
+                        }
+                        return acc;
+                    }, {});
+                }
+
+                let innerHTML = '';
+
+                for (let stat_element in stat) {
+                    innerHTML +=
+                        `<label><input type="checkbox" id="checkbox_${stat_element}" name="statistics" value="${stat_element}">${stat_element}</label>`;
+                }
+
+                document.getElementsByClassName("statistics-left")[0].innerHTML = innerHTML;
+
+                let statistics1 = d3.select(document.getElementById("statistics1"))
+                statistics1.selectAll('svg').remove();
+
+                s1 = statistics1.append("svg")
+                    .attr("viewBox", [0, 0, stat_width, stat_height])
+
+                s1_x = d3.scaleLinear()
+                    .domain([1, maxtime])
+                    .range([stat_margin.left, stat_width - stat_margin.right])
+
+                s1_xAxis = g => g
+                    .attr("transform", `translate(0,${stat_height - stat_margin.bottom})`)
+                    .call(d3.axisBottom(s1_x).ticks(stat_width / 8).tickFormat(x => x % 10 === 0 ? x : "")
+                        .tickSizeOuter(0))
+
+
+
+                s1.append("g")
+                    .call(s1_xAxis)
+
+                var s1_path = s1;
+                var s1_axis = s1.append("g");
+
+                var legend_s1 = s1.append("g");
+                var mouseG1 = s1.append("g");
+
+                $("input[name='statistics']").change(() => {
+                    let selected = [...document.querySelectorAll("input[name='statistics']:checked")].map(
+                        el => el.value);
+                    let selected_all = selected.map(el => stat[el]);
+                    let selected_stat = [];
+                    for (row of selected)
+                        for (col of stat[row]) selected_stat.push(col);
+
+                    s1_y = d3.scaleLinear()
+                        .domain([Math.min.apply(Math, selected_stat), Math.max.apply(Math, selected_stat)])
+                        .nice()
+                        .range([stat_height - stat_margin.bottom, stat_margin.top])
+
+
+                    s1_yAxis = g => g
+                        .attr("transform", `translate(${stat_margin.left},0)`)
+                        .call(d3.axisLeft(s1_y))
+                        .call(g => g.select(".domain").remove())
+                        .call(g => g.select(".tick:last-of-type text").clone()
+                            .attr("x", 3)
+                            .attr("text-anchor", "start")
+                            .attr("font-weight", "bold"));
+
+                    s1_axis.call(s1_yAxis);
+
+                    legend_s1.selectAll('rect').remove();
+                    legend_s1.selectAll('text').remove();
+
+                    s1_path.selectAll('path').remove();
+
+                    selected.forEach((el, idx) => {
+                        legend_s1.append("rect")
+                            .attr("x", idx <= 7 ? 970 - idx * 120 : 970 - (idx - 8) * 120)
+                            .attr("y", idx <= 7 ? 10 : 30)
+                            .attr("width", 10)
+                            .attr("height", 10)
+                            .attr("fill", d3.schemeCategory10[idx]);
+
+                        legend_s1.append("text")
+                            .attr("x", idx <= 7 ? 985 - idx * 120 : 985 - (idx - 8) * 120)
+                            .attr("y", idx <= 7 ? 20 : 40)
+                            .text(el);
+
+                        s1_line = d3.line()
+                            .defined(d => !isNaN(d))
+                            .x((d, i) => s1_x(i + 1))
+                            .y(d => s1_y(d))
+
+                        s1_path.append('path')
+                            .datum(stat[el])
+                            .attr('class', 'line1')
+                            .attr("fill", "none")
+                            .attr("stroke", d3.schemeCategory10[idx])
+                            .attr("stroke-width", 1.5)
+                            .attr("stroke-linejoin", "round")
+                            .attr("stroke-linecap", "round")
+                            .attr("d", s1_line);
+                    });
+
+                    mouseG1.attr("class", "mouse-over-effects");
+
+                    mouseG1.append("path") // this is the black vertical line to follow mouse
+                        .attr("class", "mouse-line")
+                        .style("stroke", "black")
+                        .style("stroke-width", "1px")
+                        .style("opacity", "1");
+
+                    var mousePerLine1 = mouseG1.selectAll('.mouse-per-line')
+                        .data(selected_all)
+                        .enter()
+                        .append("g")
+                        .attr("class", "mouse-per-line");
+
+                    mousePerLine1.append("circle")
+                        .attr("r", 3)
+                        .style('stroke', 'black')
+                        .style("fill", "none")
+                        .style("stroke-width", "1px")
+                        .style("opacity", "0");
+
+                    mousePerLine1.append("text")
+                        .attr('font-size', '10px')
+                        .attr("transform", "translate(10,3)");
+
+                    var lines1 = document.getElementsByClassName('line1');
+
+                    mouseG1.append('svg:rect') // append a rect to catch mouse movements on canvas
+                        .attr('width', stat_width) // can't catch mouse events on a g element
+                        .attr('height', stat_height)
+                        .attr('fill', 'none')
+                        .attr('pointer-events', 'all')
+                        .on('mouseout', function () { // on mouse out hide line, circles and text
+                            s1.select(".mouse-line")
+                                .style("opacity", "0");
+                            s1.selectAll(".mouse-per-line circle")
+                                .style("opacity", "0");
+                            s1.selectAll(".mouse-per-line text")
+                                .style("opacity", "0");
+                        })
+                        .on('mouseover', function () { // on mouse in show line, circles and text
+                            s1.select(".mouse-line")
+                                .style("opacity", "1");
+                            s1.selectAll(".mouse-per-line circle")
+                                .style("opacity", "1");
+                            s1.selectAll(".mouse-per-line text")
+                                .style("opacity", "1");
+                        })
+                        .on('mousemove', function (e) { // mouse moving over canvas
+                            var mouse = d3.pointer(e);
+                            var tick_size = (stat_width - stat_margin.left - stat_margin.right) / (maxtime-1);
+                            var mouse_x = Math.floor((mouse[0] - stat_margin.left + 5 ) / tick_size) * tick_size + stat_margin.left;
+
+                            s1.select(".mouse-line")
+                                .attr("d", function () {
+                                    if(mouse_x < stat_margin.left || mouse_x > stat_width - stat_margin.right) return;
+                                    var d = "M" + mouse_x + "," + height;
+                                    d += " " + mouse_x + "," + 0;
+                                    return d;
+                                });
+
+
+
+                            s1.selectAll(".mouse-per-line")
+                                .attr("transform", function (d, i) {
+                                    if(mouse_x < stat_margin.left || mouse_x > stat_width - stat_margin.right) {
+                                        d3.select(this).select('text').text('');
+                                        return;
+                                    }
+                                    if (!lines1) return;
+                                    var beginning = 0,
+                                        end = lines1[i].getTotalLength(),
+                                        target = null;
+
+                                    while (true) {
+                                        target = Math.floor((beginning + end) / 2);
+                                        pos = lines1[i].getPointAtLength(target);
+                                        if ((target === end || target === beginning) && pos.x !==
+                                            mouse_x) {
+                                            break;
+                                        }
+                                        if (pos.x > mouse_x) end = target;
+                                        else if (pos.x < mouse_x) beginning = target;
+                                        else break; //position found
+                                    }
+
+                                    d3.select(this).select('text')
+                                        .text(s1_y.invert(pos.y).toFixed(2));
+
+                                    return "translate(" + mouse_x + "," + pos.y + ")";
+                                });
+                        });
+                })
+            });
+    }
+    // stat_proc();
+
+    // library tiff.min.js (source: https://github.com/seikichi/tiff.js)
+    function tif_proc(tif_files){
+        var load_img = function(filename){
+            let tiffs = new Map();
+            let tmp =[];
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET",filename);
+            xhr.responseType="arraybuffer";
+            xhr.onload = function(e){
+                Tiff.initialize({TOTAL_MEMORY: 19777216 * 10}); //Initialize the memory with 197 MB
+                var buffer = xhr.response;
+                var tiff = new Tiff({buffer:buffer});
+                var width = tiff.width;
+                var height= tiff.height;
+                var tif_dir_cnt = tiff.countDirectory();
+
+                for(var i=0; i< tif_dir_cnt; ++i){
+                    tiff.setDirectory(i);
+                    var canvas = tiff.toCanvas();
+                    if(canvas){
+                        var $elem = $("<div><a href='"+filename+"'>"+filename+"(width:"+width+",height:"+height+")"+"</a></div>");
+                        $elem.append(canvas);
+                        var dataURL = canvas.toDataURL('img/*');
+                        img_w = canvas.width;
+                        img_h = canvas.height;
+                        tmp.push(dataURL);
+                    }
+                }
+                tiffs.set('tiff_name',filename);
+                tiffs.set('tiff_src',tmp);
+
+                arr_tiffs.push(tiffs);
+            };
+                xhr.send();
+        };
+        len=tif_files.length
+
+        for(var i=0;i<len;++i){
+            load_img(tif_files[i]);
+        }
+    }
+
+
+    function main_proc() {
+        let tif_cnt =0;
+        const data_str = document.getElementById("data_file").value;
+        ((data_str.slice(-3) == "csv") ? d3.csv(data_str) : d3.json(data_str))
+            .then((data) => {
+                // when only a csv file is uploaded, area calculation
+                // if(clicked_img^clicked_file){
+                //     get_size_from_csv();
+                // }
+                let dtype = data_str.slice(-3)
+                document.getElementById('new_image').addEventListener('change', (e) => {
+
+                    const files = Array.from(e.target.files).filter(file => /png|jpg/.test(file.name));
+                    const tif_files = Array.from(e.target.files).filter(file => /tiff|tif/.test(file.name));
+                    const tif_list = new Array(); //tiff 파일 경로 저장 배열
+                    files.sort((a, b) => a.name.localeCompare(b.name));
+                    tif_files.sort((a, b) => a.name.localeCompare(b.name));
+
+                    if(tif_files.length>0){
+                        clicked_img=true;
+                        for(var i=0; i<tif_files.length;i++){
+                            tif_list.push('images/'+tif_files[i].webkitRelativePath);
+                        }
+                        tif_proc(tif_list);
+                    }else{
+                        clicked_img=true;
+
+                        image_files = files;
+                        // let img = new Image();
+                        // img.onload = function() {
+                        //     img_w = img.width;
+                        //     img_h = img.height;
+                        // }
+                        const _src = current_background();
+                        img.src = _src;
+                        // image_files = files;
+                    }
+
+                    svg_background.attr("xlink:href", current_background());
+                    svgMinimap.select("image").attr("xlink:href", current_background());
+
+                    grid_onoff(gridbutton.checked)
+                })
+
+
+                // tiff '<<' event
+                document.getElementById('prev').addEventListener('click', (e) => {
+                    if(tif_cnt>0){
+                        tif_cnt--;
+                        svg_background.attr("xlink:href", current_background());
+                        document.querySelector('#current_tif_page').innerHTML = (tif_cnt+1);
+                    }
+                });
+
+                // tiff '<<' event
+                document.getElementById('next').addEventListener('click', (e) => {
+                    var len = arr_tiffs[time % arr_tiffs.length].get('tiff_src').length;
+                    if(tif_cnt<len-1){
+                        tif_cnt++;
+                        svg_background.attr("xlink:href", current_background());
+                        document.querySelector('#current_tif_page').innerHTML = (tif_cnt+1);
+                    }
+                });
+
+                if (timer) {
+                    clearInterval(timer);
+                    timer = null;
+                }
+                let paused = false;
+                let stopped = true;
+                let circle = Number(document.getElementById("circleSize").value) || 1;
+                let thickness = Number(document.getElementById("thickness").value) / 10;
+                let selected_thickness = thickness + 3;
+                height = 1000
+                width = 1000
+                // height = img_h
+                // width = img_w
+
+                let margin = ({
+                    top: 20,
+                    right: 20,
+                    bottom: 30,
+                    left: 40
+                })
+
+                let num_node, state, diff;
+                let selected_nodes = [];
+                let chosen_nodes = [];
+
+                maxtime=0
+                num_node = null
+                state = new Array()
+                diff = new Array()
+
+                // // view size by csv
+                // function get_size_from_csv(){
+                //     let min_left = parseFloat(data[0].left), min_top = parseFloat(data[0].top), max_left = parseFloat(data[0].left), max_top = parseFloat(data[0].top);
+                //     for(let i =1; i< data.length; i++){
+                //         if(min_left > parseFloat(data[i].left)){
+                //             min_left = parseFloat(data[i].left);
+                //         }
+                //         if(min_top > parseFloat(data[i].top)){
+                //             min_top = parseFloat(data[i].top);
+                //             add_height = parseFloat(data[i].height);
+                //         }
+                //         if(max_left < parseFloat(data[i].left)){
+                //             max_left = parseFloat(data[i].left);
+                //             add_width = parseFloat(data[i].width);
+                //         }
+                //         if(max_top < parseFloat(data[i].top)){
+                //             max_top = parseFloat(data[i].top);
+                //         }
+                //     }
+                //     img_w = max_left - min_left + add_width;
+                //     img_h = max_top - min_top + add_height;
+                // }
+
+                img_w = data[0].img_width;
+                img_h = data[0].img_height;
+                for (let i = 0; i < data.length; i++) {
+                    d = data[i]
+                    while(state.length<d.timestep) state.push(Array.from(Array(4), () => new Array()))
+                    maxtime = Math.max(maxtime, d.timestep)
+
+                    console.log(img_w,img_h)
+                    // state[d.timestep-1][0].push(Number(d.left) / img_w * width)
+                    // state[d.timestep-1][1].push(0)
+                    // state[d.timestep-1][2].push(Number(d.top) / img_w * height + (1-img_h/img_w)*height/2)
+                    // state[d.timestep-1][3].push(0)
+
+                    state[d.timestep-1][0].push( (Number(d.left)+(Number(d.width))/2) / img_w * width)
+                    state[d.timestep-1][1].push(0)
+                    state[d.timestep-1][2].push( (Number(d.top)-(Number(d.height))/2) / img_w * height + (1-img_h/(img_w))*height/2 )
+                    state[d.timestep-1][3].push(0)
+
+                    // state[d.timestep-1][0].push(((Number(d.left)/img_w*width) + (Number(d.width)/2)))
+                    // state[d.timestep-1][1].push(0)
+                    // state[d.timestep-1][2].push(Number(d.top) / img_w * height + (1-img_h/img_w)*height/2 - Number(d.height)/2)
+                    // state[d.timestep-1][3].push(0)
+
+                    let j, k
+                    while(diff.length<d.timestep) diff.push(new Array())
+                    for(j=d.timestep-2; j>=0; j--){
+                        for(k=0; k<diff[j].length; k++){
+                            if(j==d.timestep-2 && diff[j][k][diff[j][k].length-1]==d.id){
+                                diff[d.timestep-1].push(diff[j][k])
+                                break
+                            }
+                            else if(d.parent==diff[j][k][diff[j][k].length-1]){
+                                diff[d.timestep-1].push(new Array())
+                                for(let l=0; l<diff[j][k].length; l++)
+                                    diff[d.timestep-1][diff[d.timestep-1].length-1].push(Number(diff[j][k][l]))
+                                diff[d.timestep-1][diff[d.timestep-1].length-1].push(Number(d.timestep-1))
+                                diff[d.timestep-1][diff[d.timestep-1].length-1].push(Number(d.id))
+                                break
+                            }
+                        }
+                        if(k<diff[j].length) break
+                    }
+                    if(j<0){
+                        diff[d.timestep-1].push(new Array())
+                        diff[d.timestep-1][diff[d.timestep-1].length -1].push(Number(d.timestep-1))
+                        diff[d.timestep-1][diff[d.timestep-1].length-1].push(Number(d.id))
+                    }
+                }
+                to=maxtime
+
+                $(document.getElementById("to")).text(`${maxtime}`)
+                document.getElementById("myRange").setAttribute("max", maxtime-1)
+                $(document.getElementById("max")).text(`${maxtime}`)
+                let parent = Array.from(Array(maxtime+1), () => new Array(maxtime))
+                let lineage_id = Array.from(Array(maxtime+1), () => new Array(maxtime))
+                let num_l = 0
+
+                document.getElementById('myRange').value = time;
+                document.getElementById('myRange').addEventListener('input', sliderdragged);
+
+                document.getElementById('circleSize').addEventListener('input', (e) => {
+                    circle = Number(e.target.value) || 1;
+                    node.selectAll("circle").attr("r", circle);
+                })
+                document.getElementById('thickness').addEventListener('input', (e) => {
+                    thickness = Number(e.target.value) / 10;
+                    line.selectAll("line").attr("stroke-width", thickness);
+                    route_vector.selectAll("line").attr("stroke-width", thickness);
+                    route.selectAll("polyline").attr("stroke-width", thickness);
+                    VAPNline.selectAll("polyline").attr("stroke-width", thickness)
+                })
+
+                let birth_color = "white"
+                document.getElementById('opacity').addEventListener('input', (e) => {
+                    svgg.selectAll('image').attr('opacity', e.target.value * 0.01);
+                    birth_color = "white"
+                    birthUpdate()
+                })
+
+                // document.getElementById('from')
+
+                document.addEventListener("keyup", (e) => {
+                    merge_on = false;
+                    if (e.code === 'KeyV') { // vertical split
+                        document.getElementById('mode-detail').innerText = 'vertical split';
+                    } else if (e.code === 'KeyH') { // horizontal split
+                        document.getElementById('mode-detail').innerText = 'horizontal split';
+                    } else if (e.code === 'KeyM') { // merge
+                        document.getElementById('mode-detail').innerText = 'merge';
+                        merge_on = true;
+                    } else if (e.code === 'KeyS') { // select split
+                        document.getElementById('mode-detail').innerText = 'select split';
+                    } else if (e.key === 'Control') { // add
+                        document.getElementById('mode-detail').innerText = 'add';
+                        let all_nodes = document.getElementsByClassName("node");
+
+                        for (let i = 0; i < all_nodes.length; i++) {
+                            if (all_nodes[i].getAttribute("selected") == "true") {
+                                all_nodes[i].setAttribute("chosen", "true");
+                                all_nodes[i].setAttribute("selected", "false");
+                            }
+                        }
+                        selected_nodes = Array.from(node_data).filter(el => el.getAttribute('selected') == 'true').map(el => el.getAttribute('id'));
+                        chosen_nodes = Array.from(node_data).filter(el => el.getAttribute('chosen') == 'true').map(el => el.getAttribute('id'));
+                        toggleRelatedObject();
+                        area.attr("width", 0).attr("height", 0);
+                    } else if (e.key === 'Shift') { // sub
+                        document.getElementById('mode-detail').innerText = 'sub';
+                        let all_nodes = document.getElementsByClassName("node");
+
+                        for (let i = 0; i < all_nodes.length; i++) {
+                            if (all_nodes[i].getAttribute("selected") == "true") {
+                                all_nodes[i].setAttribute("chosen", "false");
+                                all_nodes[i].setAttribute("selected", "false");
+                            }
+                        }
+                        if(node_data != undefined){
+                            selected_nodes = Array.from(node_data).filter(el => el.getAttribute('selected') == 'true').map(el => el.getAttribute('id'));
+                            chosen_nodes = Array.from(node_data).filter(el => el.getAttribute('chosen') == 'true').map(el => el.getAttribute('id'));
+                        }
+                        toggleRelatedObject();
+                        area.attr("width", 0).attr("height", 0);
+                    } else return;
+                })
+
+                //calculating parent[x][y]
+                for (let i = 0; i < diff.length; i++) {
+                    for (let j = 0; j < diff[i].length; j++) {
+                        temp = diff[i][j]
+                        // if (temp[temp.length - 2] == i + 1)
+                        if (temp[temp.length - 2] == i)
+                            temp = diff[i][j].slice(0, temp.length - 2)
+
+                        for (let k = 0; k < diff[i - 1].length; k++) {
+                            comp = diff[i - 1][k]
+                            if (comp.toString() == temp.toString()) {
+                                parent[i][j] = k
+                                if(dtype=="csv"){
+                                    state[i-1][1][k] = (state[i-1][1][k]==0) ? state[i][0][j]-state[i-1][0][k] : null
+                                    state[i-1][3][k] = (state[i-1][3][k]==0) ? state[i][2][j]-state[i-1][2][k] : null
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                let last = Array.from(Array(maxtime), () => new Array())
+
+                for(let i=0; i<diff.length-1; i++){
+                    for(let j=0; j<diff[i].length; j++){
+                        let k
+                        for(k=0; k<diff[i+1].length; k++){
+                            if(j==parent[i+1][k])
+                                break
+                        }
+                        if(k==diff[i+1].length)
+                            last[i].push(j)
+                    }
+                }
+
+                function sibling(index, prev) {
+                    let first = true
+                    if (index >= maxtime) return
+                    for (let k = 0; k < diff[index].length; k++) {
+                        if (prev == parent[index][k]) {
+                            if (first) {
+                                first = false
+                                num_l--
+                            }
+                            lineage_id[index][k] = ++num_l
+                            sibling(index + 1, k)
+                        }
+                    }
+                }
+
+                for (let i = 0; i < diff.length; i++) {
+                    for (let j = 0; j < diff[i].length; j++) {
+                        if (parent[i][j] == undefined) {
+                            lineage_id[i][j] = ++num_l
+                            sibling(i + 1, j)
+                        }
+                    }
+                }
+
+                let x1, y1, x2, y2;
+
+                // vector change according to the state of node
+                function toggleRelatedObject() {
+                    let all_nodes = document.getElementsByClassName('node');
+                    let trajectories = Array.from(document.querySelectorAll('[class^="traj_"]'));
+
+                    if(all_nodes.length == 0) {
+                        let vectors = Array.from(document.querySelectorAll('[class^="vector_"]'));
+                        vectors.forEach(element => {
+                            element.setAttribute("stroke", "white");
+                            element.setAttribute("marker-end", "url(#arrow)");
+                        })
+                        trajectories.forEach((element, idx) => {
+                            element.setAttribute("stroke", d3.interpolateRainbow((lineage_color(time, idx) * 728513 %320) / 320));
+                        })
+                        return;
+                    }
+
+                    Array.from(all_nodes).forEach(element => {
+                        const isSelected = selected_nodes.includes(element.getAttribute('id'));
+                        const isChosen = chosen_nodes.includes(element.getAttribute('id'));
+
+                        let related_vector = document.getElementById(`vector_${element.getAttribute("id")}`);
+                        if (related_vector) {
+                            related_vector.setAttribute("stroke", isSelected ? "red" : "white");
+                            related_vector.setAttribute("marker-end", isSelected ? "url(#arrow_red)" :
+                                "url(#arrow)")
+                        }
+
+                        let related_trajectory = document.getElementsByClassName(`traj_${element.getAttribute("id")}`);
+                        if (related_trajectory) {
+                            Array.from(related_trajectory).forEach(traj => {
+                                let idx = trajectories.findIndex(inner => inner === traj);
+                                traj.setAttribute("stroke", isSelected
+                                    ? "red"
+                                    : d3.interpolateRainbow((lineage_color(time, idx) * 728513 %320) / 320));
+                            })
+                        }
+
+                        if (isSelected) {
+                            element.setAttribute("stroke", "red");
+                        } else if (isChosen) {
+                            element.setAttribute("stroke", "white");
+                        } else {
+                            element.setAttribute("stroke", "none");
+                        }
+                    })
+                }
+
+                function setSlider() {
+                    const width = document.getElementsByClassName('play-range')[0].offsetWidth;
+                    $('.count').css('left', parseInt((time + 2) * width / 100 * 0.97) + 'px');
+                    $('#from').css('left', parseInt(from * 9.696 + 10.304) + 'px');
+                    $('#to').css('left', parseInt(to * 9.696 + 4.304) + 'px');
+                }
+
+                function animation() {
+                    document.querySelector('.tif_img_cont').style.display = 'none';
+                    speed = 150;
+                    console.log('abc');
+
+                    if (timer) {
+                        if (paused) {
+                            paused = false;
+                            stopped = false;
+                            return;
+                        }
+                        clearInterval(timer);
+                        timer = null;
+                    }
+                    stopped = false;
+                    paused = false;
+
+                    time = from - 1;
+
+                    timer = setInterval(() => {
+                        if (paused || stopped) {
+                            return;
+                        }
+                        if (timer && time === to) {
+                            clearInterval(timer);
+                            timer = null;
+                            stopped = true;
+                            time = to - 1;
+                            return;
+                        }
+                        lineage_current_time.attr('x', 10 + 9.8 * (time)); //TODO
+                        document.getElementById('myRange').value = time;
+                        Update();
+                        time++;
+                    }, speed);
+                }
+
+                function pauseAnimation() {
+                    if (!stopped) paused = true;
+
+                    // pause -> tiff exploration
+                    if(arr_tiffs.length >0){
+                        document.querySelector('.tif_img_cont').style.display = 'block';
+                        var f_index = arr_tiffs[time % arr_tiffs.length].get('tiff_src').length;
+                        document.querySelector('#current_tif_page').innerHTML = (tif_cnt+1);
+                        document.querySelector('#total_tif_page').innerHTML = f_index;
+                    }
+                }
+
+                function stopAnimation() {
+                    stopped = true;
+                    paused = false;
+                    if (timer) {
+                        clearInterval(timer);
+                        timer = null;
+                        time = 0;
+                        document.getElementById('myRange').value = time;
+                        lineage_current_time.attr('x', 10 + 9.8 * (time));
+                        Update();
+                    }
+                }
+
+                function sliderdragged(e) {
+                    stopAnimation();
+                    time = parseInt(e.target.value);
+                    lineage_current_time.attr('x', 10 + 9.8 * (time));
+                    Update();
+                }
+
+                setSlider();
+
+                document.getElementById('play').addEventListener('click', animation);
+                document.getElementById('stop').addEventListener('click', stopAnimation);
+                document.getElementById('pause').addEventListener('click', pauseAnimation);
+
+                //button, checkbox onclick function definition
+                document.getElementById("mode").addEventListener("input", (e) => {
+                    merge_on = false;
+                    if (e.target.value === 'normal') {
+                        document.getElementById('mode-detail').innerText = '';
+                        return;
+                    }
+
+                    if (e.target.value === 'split') {
+                        document.getElementById('mode-detail').innerText = 'vertical split';
+                    }
+
+                    selected_nodes = [];
+                    toggleRelatedObject();
+                })
+
+                function isIn(obj, xxx, yyy) {
+                    let x0 = Number(obj.getAttribute("x"))
+                    let x1 = x0 + Number(obj.getAttribute("width"))
+                    let y0 = Number(obj.getAttribute("y"))
+                    let y1 = y0 + Number(obj.getAttribute("height"))
+                    let xx = Number(xxx)
+                    let yy = Number(yyy)
+
+                    if (x0 <= xx && xx <= x1 && y0 <= yy && yy <= y1) return true
+                    return false
+                }
+
+                let VAPN = document.getElementById("VAPN")
+                VAPN.addEventListener('click', () => VAPNUpdate())
+                let obutton = document.getElementById("object")
+                obutton.addEventListener('click', () => objectUpdate())
+                let abutton = document.getElementById("allpoint")
+                abutton.addEventListener('click', () => allpointUpdate())
+                let bbutton = document.getElementById("birth")
+                bbutton.addEventListener('click', () => birthUpdate())
+                let vbutton = document.getElementById("vector")
+                vbutton.addEventListener('click', () => lineUpdate())
+                let rbutton = document.getElementById("route")
+                rbutton.addEventListener('click', () => routeUpdate())
+                let merge_on = false
+                let gridbutton = document.getElementById("grid")
+                gridbutton.addEventListener('click', () => grid_onoff(gridbutton.checked))
+
+                //Control mode : normal, drag-select, split-select
+                function current_control_mode() {
+                    // console.log(document.getElementById('mode').value);
+                    return document.getElementById('mode').value;
+
+                }
+
+                //Split mode : vertial, horizontal
+                function current_detail_mode() {
+                    return document.getElementById('mode-detail').innerText;
+                }
+
+                let splitsel_data = []
+
+                let currentX = 0
+                let currentY = 0
+                let nowxt = 0
+                let nowyt = 0
+
+                drag = () => {
+                    function dragstarted(event) {
+                        event.sourceEvent.stopPropagation();
+                        if (current_control_mode() == "normal") {
+                            area.attr("width", 0).attr("height", 0)
+
+                            x1 = event.x;
+                            y1 = event.y;
+
+                            selected_nodes = [];
+                            toggleRelatedObject();
+                        }
+                    }
+
+                    function dragged(event) {
+                        if (current_control_mode() === "normal") {
+                            // splitbox_zero()
+                            x2 = event.x;
+                            y2 = event.y;
+
+                            let xx1, yy1, xx2, yy2;
+                            if (x1 > x2) {
+                                xx1 = x2, xx2 = x1;
+                            } else {
+                                xx1 = x1, xx2 = x2;
+                            }
+                            if (y1 > y2) {
+                                yy1 = y2, yy2 = y1;
+                            } else {
+                                yy1 = y1, yy2 = y2;
+                            }
+
+                            area.attr("x", xx1).attr("y", yy1)
+                                .attr("width", xx2 - xx1)
+                                .attr("height", yy2 - yy1)
+                                .transition()
+                        }
+                    }
+
+                    function dragended(event) {
+                        event.sourceEvent.stopPropagation();
+                        if (current_control_mode() == "normal") {
+                            // splitbox_zero()
+                            x2 = event.x;
+                            y2 = event.y;
+
+                            let temp;
+                            if (x1 > x2) {
+                                temp = x1, x1 = x2, x2 = temp;
+                            }
+                            if (y1 > y2) {
+                                temp = y1, y1 = y2, y2 = temp;
+                            }
+
+                            let all_nodes = document.getElementsByClassName("node");
+                            let ids = [];
+                            for (let i = 0; i < all_nodes.length; i++) {
+                                let xx = Number(all_nodes[i].getAttribute("cx"));
+                                let yy = Number(all_nodes[i].getAttribute("cy"));
+
+                                if (x1 <= xx && xx <= x2 && y1 <= yy && yy <= y2) {
+                                    selected_nodes.push(all_nodes[i].getAttribute('id'));
+                                    ids.push(all_nodes[i].getAttribute('id'));
+                                }
+                            }
+                            toggleRelatedObject();
+
+                            lineage_lng.selectAll("polyline").attr("opacity", 0.3)
+                            lineage_lng.raise();
+
+                            let lineagelines = lineage_lng.selectAll("polyline").filter((d, i,
+                                                                                         nodes) => {
+                                return ids.includes(nodes[i].getAttribute("id"));
+                            })
+                            lineagelines.attr("opacity", 1)
+                            lineagelines.raise()
+
+                            area.attr("width", 0)
+                                .attr("height", 0)
+                        } else if (current_control_mode() == "split") {
+                            let start_pos = document.getElementsByClassName('background')[0]
+                                .getBoundingClientRect();
+                            let mouse_x = event.x
+                            let mouse_y = event.y;
+                            if (current_detail_mode() === 'select split') {
+                                let [min_x, max_x] = get_x_range(mouse_x, mouse_y);
+                                let [min_y, max_y] = get_y_range(mouse_x, mouse_y);
+
+                                svgg.selectAll('.splitarea').remove();
+                                svgg.append('rect')
+                                    .attr('class', 'splitarea')
+                                    .attr('stroke', 'red')
+                                    .attr('stroke-width', 2)
+                                    .attr('fill', 'none')
+                                    .attr('x', min_x)
+                                    .attr('y', min_y)
+                                    .attr('width', parseInt(max_x) - parseInt(min_x))
+                                    .attr('height', parseInt(max_y) - parseInt(min_y));
+                                UpdateSplitHistogram()
+                            } else { //spliting part
+
+                                if (current_detail_mode() == "vertical split") {
+                                    let [min_y, max_y] = get_y_range(mouse_x, mouse_y);
+
+                                    svgg.append('line')
+                                        .attr('class', 'splitline')
+                                        .attr('class', 'vertical')
+                                        .attr('stroke', 'white')
+                                        .attr('stroke-width', 2)
+                                        .attr('fill', 'none')
+                                        .attr('x1', mouse_x)
+                                        .attr('x2', mouse_x)
+                                        .attr('y1', min_y)
+                                        .attr('y2', max_y)
+                                        .on('mouseover', function () {
+                                            if (current_detail_mode() == "merge") {
+                                                svgg.selectAll('.splitarea').remove();
+                                                UpdateSplitHistogram();
+                                                d3.select(this).remove();
+                                            }
+                                        });
+
+                                } else if (current_detail_mode() == "horizontal split") {
+                                    let [min_x, max_x] = get_x_range(mouse_x, mouse_y);
+
+                                    svgg.append('line')
+                                        .attr('class', 'splitline')
+                                        .attr('class', 'horizontal')
+                                        .attr('stroke', 'white')
+                                        .attr('stroke-width', 2)
+                                        .attr('fill', 'none')
+                                        .attr('x1', min_x)
+                                        .attr('x2', max_x)
+                                        .attr('y1', mouse_y)
+                                        .attr('y2', mouse_y)
+                                        .on('mouseover', function () {
+                                            if (current_detail_mode() == "merge") {
+                                                svgg.selectAll('.splitarea').remove();
+                                                UpdateSplitHistogram();
+                                                d3.select(this).remove();
+                                            }
+                                        });
+                                }
+                            }
+                        }
+                    }
+
+                    return d3.drag()
+                        .on("start", dragstarted)
+                        .on("drag", dragged)
+                        .on("end", dragended);
+                }
+
+                // Whole screen update
+                async function Update() {
+                    $('.count').val(time + 1);
+                    $('.count').text(time + 1);
+
+                    setSlider();
+
+                    allpointUpdate()
+
+                    VAPNUpdate()
+
+                    objectUpdate()
+
+                    birthUpdate()
+
+                    lineUpdate()
+
+                    routeUpdate()
+
+                    routeVectorUpdate()
+                    if (time !== 0) {
+                        let Xvector = d3.bin().thresholds(10)(state[time][1])
+                        let Yvector = d3.bin().thresholds(10)(state[time][3])
+                        UpdateHistogram(Xvector, Xhistogram, Xhistogram_xAxis, Xhistogram_yAxis, 1)
+                        UpdateHistogram(Yvector, Yhistogram, Yhistogram_xAxis, Yhistogram_yAxis, 2)
+
+                        UpdateSplitHistogram()
+                    }
+
+                    toggleRelatedObject();
+                    svg_background.attr("xlink:href", current_background())
+                    svgMinimap.select("image").attr("xlink:href", current_background())
+                }
+
+                //zoom & minimap part
+                _config = ({
+                    margin: 0, //org : 20
+                    _width: 1000,
+                    _height: 1000,
+                    viewWidth: 1000,
+                })
+
+                config = ({
+                    ..._config,
+                    clippedWidth: _config._width - _config.margin * 2,
+                    clippedHeight: _config._height - _config.margin * 2,
+                    minimapScale: _config.viewWidth / _config._width,
+                    viewHeight: _config._height * (_config.viewWidth / _config._width)
+                })
+                let ratio = 1
+                let zoomScale = ratio
+
+
+                const div = d3.select(".content-main")
+                const svg = div.select("svg")
+                    .attr("width", width)
+                    .attr("height", height)
+                    .attr("viewBox", [0, 0, width, height])
+
+                //Histogram Part
+                const histogram_size_x = 200
+                const histogram_size_y = 150
+                let histograms = document.getElementById("histograms")
+                histograms.innerHTML = '';
+
+                let Xhistogram = d3.select(histograms).append("div").append("svg")
+                    .attr("width", histogram_size_x)
+                    .attr("height", histogram_size_y)
+                    .append("g")
+                Xhistogram.append("text")
+                    .attr("x", (histogram_size_x / 2))
+                    .attr("y", 10)
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "13px")
+                    // .style("text-decoration", "underline")
+                    .text("Horizontal Vector Histogram")
+                Xhistogram_xAxis = Xhistogram.append("g")
+                Xhistogram_yAxis = Xhistogram.append("g")
+                let Yhistogram = d3.select(histograms).append("div").append("svg")
+                    .attr("width", histogram_size_x)
+                    .attr("height", histogram_size_y)
+                    .append("g")
+                Yhistogram.append("text")
+                    .attr("x", (histogram_size_x / 2))
+                    .attr("y", 10)
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "13px")
+                    // .style("text-decoration", "underline")
+                    .text("Vertical Vector Histogram")
+                Yhistogram_xAxis = Yhistogram.append("g")
+                Yhistogram_yAxis = Yhistogram.append("g")
+                let splitXhistogram = d3.select(histograms).append("div").append("svg")
+                    .attr("width", histogram_size_x)
+                    .attr("height", histogram_size_y)
+                    .append("g")
+                splitXhistogram.append("text")
+                    .attr("x", (histogram_size_x / 2))
+                    .attr("y", 10)
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "12px")
+                    .style("text-decoration", "underline")
+                    .text("Selected Horizontal Vector Histogram")
+                splitXhistogram_xAxis = splitXhistogram.append("g")
+                splitXhistogram_yAxis = splitXhistogram.append("g")
+                let splitYhistogram = d3.select(histograms).append("div").append("svg")
+                    .attr("width", histogram_size_x)
+                    .attr("height", histogram_size_y)
+                    .append("g")
+                splitYhistogram.append("text")
+                    .attr("x", (histogram_size_x / 2))
+                    .attr("y", 10)
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "12px")
+                    .style("text-decoration", "underline")
+                    .text("Selected Vertical Vector Histogram")
+                splitYhistogram_xAxis = splitYhistogram.append("g")
+                splitYhistogram_yAxis = splitYhistogram.append("g")
+
+                //zoom & minimap part 2
+                trans = (x, y, k) => {
+                    const coord2d = `translate(${x}, ${y})`;
+                    if (!k) return coord2d;
+                    return coord2d + ` scale(${k})`;
+                }
+                ttrans = (x, y, k) => ['transform', trans(x, y, k)]
+
+                minimapScaleX = zoomScale_ => d3.scaleLinear([0, config._width], [0, config._width *
+                zoomScale_
+                ])
+                minimapScaleY = zoomScale_ => d3.scaleLinear([0, config._height], [0, config._height *
+                zoomScale_
+                ])
+
+                svg.selectAll('g').remove();
+                //Minimap Part
+                const gCam = svg.append('g')
+                    .attr("id", "gCam")
+                    .attr("text-anchor", "middle")
+
+                const svgg = gCam //svg
+                    .append('g')
+                    .attr("id", "stageChart")
+                    .attr(...ttrans(config.margin, config.margin));
+                svgg.call(drag());
+
+                function get_x_range(mouse_x, mouse_y) {
+                    let min_x = 0;
+                    let max_x = width;
+
+                    let vertical_lines = [...document.getElementsByClassName('vertical')]
+                        .filter(el => el.getAttribute('y1') <= mouse_y && mouse_y <= el.getAttribute('y2'));
+
+                    vertical_lines.sort((a, b) => a.getAttribute('x1') - b.getAttribute('x1'));
+
+                    for (let i = 0; i < vertical_lines.length - 1; i++) {
+                        if (vertical_lines[i].getAttribute('x1') <= mouse_x && mouse_x <= vertical_lines[i + 1]
+                            .getAttribute('x1')) {
+                            min_x = vertical_lines[i].getAttribute('x1');
+                            max_x = vertical_lines[i + 1].getAttribute('x1');
+                        }
+                    }
+
+                    if (vertical_lines.length !== 0 && mouse_x < vertical_lines[0].getAttribute('x1')) {
+                        max_x = vertical_lines[0].getAttribute('x1');
+                    }
+
+                    if (vertical_lines.length !== 0 && mouse_x > vertical_lines[vertical_lines.length - 1]
+                        .getAttribute('x1')) {
+                        min_x = vertical_lines[vertical_lines.length - 1].getAttribute('x1');
+                    }
+
+                    return [min_x, max_x];
+                }
+
+                function get_y_range(mouse_x, mouse_y) {
+                    let min_y = 0;
+                    let max_y = height;
+
+                    let horizontal_lines = [...document.getElementsByClassName('horizontal')]
+                        .filter(el => el.getAttribute('x1') <= mouse_x && mouse_x <= el.getAttribute('x2'));
+
+                    horizontal_lines.sort((a, b) => a.getAttribute('y1') - b.getAttribute('y1'));
+
+                    for (let i = 0; i < horizontal_lines.length - 1; i++) {
+                        if (horizontal_lines[i].getAttribute('y1') <= mouse_y && mouse_y <= horizontal_lines[i +
+                        1].getAttribute('y1')) {
+                            min_y = horizontal_lines[i].getAttribute('y1');
+                            max_y = horizontal_lines[i + 1].getAttribute('y1');
+                        }
+                    }
+
+                    if (horizontal_lines.length !== 0 && mouse_y < horizontal_lines[0].getAttribute('y1')) {
+                        max_y = horizontal_lines[0].getAttribute('y1');
+                    }
+
+                    if (horizontal_lines.length !== 0 && mouse_y > horizontal_lines[horizontal_lines.length - 1]
+                        .getAttribute('y1')) {
+                        min_y = horizontal_lines[horizontal_lines.length - 1].getAttribute('y1');
+                    }
+
+                    return [min_y, max_y];
+                }
+
+                function merge(event) {
+
+                }
+
+                svgg.on('click', event => {
+
+                })
+
+                function get_size_from_link(callback) {
+                    const img = new Image();
+                    const url = window.URL | window.webkitURL;
+                    img.onload = function() { callback(this.width, this.height) } ;
+
+                    const current = current_background();
+                    if(image_files.length > 0) {
+                        img.src = URL.createObjectURL(image_files.find(el => current.includes(el.webkitRelativePath)));
+                    } else {
+                        callback(width, height);
+                    }
+                }
+
+                function current_background() {
+                    if (image_files.length !== 0) {
+                        return `images/` + image_files[time % image_files.length].webkitRelativePath;
+                    }
+                    // tiff plot
+                    if(arr_tiffs.length>0){
+                        return arr_tiffs[time % arr_tiffs.length].get('tiff_src')[tif_cnt];
+                    }
+                    return `images/synthetic_png/${String(time+1).padStart(3, '0')}.png`;
+                }
+
+                svgg.append("defs").append("clipPath")
+                    .attr("id", "rectView")
+                    .append("rect")
+                    .attr("fill", "none")
+                    .attr("width", width)
+                    .attr("height", height)
+                svg_background = svgg.append("image")
+                    .attr('class', 'background')
+                    .attr("width", width)
+                    .attr("height", height)
+                    .attr("xlink:href", current_background())
+                    .attr("clip-path", "url(#rectView)")
+                    .attr('opacity', 0.7)
+
+                const node = svgg.append("g");
+                const ap = svgg.append("g");
+
+                const line = svgg.append("g")
+
+                const birth = svgg.append("text");
+
+                const area = svgg.append("rect") // drag-select area
+                    .style("fill", "blue")
+                    .style("fill-opacity", "0.5")
+
+                const route = svgg.append("g")
+                const route_vector = svgg.append("g")
+                const VAPNline = svgg.append("g")
+
+                const grid = svg.append("g")
+                const left_legend = svg.append("g")
+                const top_legend = svg.append("g")
+                let minscale = 20
+
+                grid_onoff(true)
+
+                function grid_onoff(gridonoff) {
+                    grid.selectAll("line").remove()
+                    left_legend.selectAll('text').remove()
+                    top_legend.selectAll('text').remove()
+
+                    let GridOpacity
+                    if (gridonoff == true) GridOpacity = 0.3
+                    else GridOpacity = 0
+                    for (i = 1; i < minscale; i++) {
+                        grid.append("line")
+                            .attr("stroke-opacity", `${GridOpacity}`)
+                            .attr("stroke-width", 1)
+                            .attr("stroke", "white")
+                            .attr("x1", "0")
+                            .attr("y1", `${height/minscale*i}`)
+                            .attr("x2", `${width}`)
+                            .attr("y2", `${height/minscale*i}`)
+                        grid.append("line")
+                            .attr("stroke-opacity", `${GridOpacity}`)
+                            .attr("stroke", "white")
+                            .attr("stroke-width", 1)
+                            .attr("x1", `${width/minscale*i}`)
+                            .attr("y1", "0")
+                            .attr("x2", `${width/minscale*i}`)
+                            .attr("y2", `${height}`)
+                        left_legend.append("text")
+                            .attr("fill-opacity", `${gridonoff ? 1 : 0}`)
+                            .attr("x", `${width/minscale*i-7}`)
+                            .attr("y", "10")
+                            .attr("fill", "aquamarine")
+                            .attr("font-size", 10)
+                            .text(`${(img_h/minscale*i).toFixed(1)}`)
+                        top_legend.append("text")
+                            .attr("fill-opacity", `${gridonoff ? 1 : 0}`)
+                            .attr("y", `${width/minscale*i+4}`)
+                            .attr("x", "10")
+                            .attr("fill", "aquamarine")
+                            .attr("font-size", 10)
+                            .text(`${(img_w/minscale*i).toFixed(1)}`)
+                    }
+                }
+
+                //minimap part
+                const svgMinimap = d3
+                    .selectAll('#svgMinimap')
+                    .attr('width', minimapScaleX(config.minimapScale)(config._width))
+                    .attr('height', minimapScaleY(config.minimapScale)(config._height))
+                    .attr('viewBox', [0, 0, config._width, config._height].join(' '))
+                    .attr('background', 'black')
+                    .attr('preserveAspectRatio', 'xMidYMid meet')
+
+                svgg.append('g').attr(...ttrans(config.margin, config.margin));
+
+                svgMinimap
+                    .select('image')
+                    .attr('width', config._width)
+                    .attr('height', config._height)
+                    .attr("xlink:href", current_background());
+
+                const stageMinimap = svgMinimap
+                    .select('#stageMinimap')
+                    .attr(...ttrans(config.margin, config.margin));
+
+                let nowzoom = 3
+
+                function onZoom(event) {
+                    if (event.sourceEvent == null) return;
+                    if (event.sourceEvent.type === "mousemove") return null;
+                    if (event.sourceEvent && event.sourceEvent.type === "brush" || event.sourceEvent.type ==
+                        "dblclick")
+                        return null;
+                    const t = event.transform;
+
+                    if (event.sourceEvent.wheelDelta < 0 && nowzoom < 10) nowzoom += 1 //panning
+                    else if (event.sourceEvent.wheelDelta > 0 && nowzoom > 3) nowzoom -= 1
+                    else return
+
+                    prevX = currentX;
+                    prevY = currentY;
+                    // currentX = event.
+
+                    currentX = event.sourceEvent.x / zoomScale
+                    currentY = event.sourceEvent.y / zoomScale
+                    zoomScale = 10 / nowzoom
+                    currentX = currentX * zoomScale
+                    currentY = currentY * zoomScale
+                    if ((currentX + width) / zoomScale > width) {
+                        currentX = width * (zoomScale - 1)
+                    }
+                    if ((currentY + height) / zoomScale > height) {
+                        currentY = height * (zoomScale - 1)
+                    }
+
+                    deltaX = currentX - prevX;
+                    deltaY = currentY - prevY;
+                    // gCam.attr(...ttrans(t.x * zoomScale, t.y * zoomScale, zoomScale));
+                    // console.log(deltaX, deltaY, zoomScale);
+                    gCam.attr(...ttrans(0, 0, zoomScale));
+                    grid.attr(...ttrans(0, 0, zoomScale));
+                    left_legend.attr(...ttrans(0, 0, zoomScale));
+                    top_legend.attr(...ttrans(0, 0, zoomScale));
+                    // scale.attr(...ttrans(0, 0, zoomScale));
+                    //prevent brush invoked event
+
+                    const scaleX = minimapScaleX(zoomScale);
+                    const scaleY = minimapScaleY(zoomScale);
+                    brush.move(gBrush, [ // NOT multiply zoomscale!! this is correct
+                        [scaleX.invert(currentX), scaleY.invert(currentY)],
+                        [
+                            scaleX.invert(currentX + config.viewWidth * ratio),
+                            scaleY.invert(currentY + config.viewHeight * ratio)
+                        ]
+                    ]);
+                }
+
+                // WARNING: *world size* should be larger than or equal to *viewport size*
+                // if the world is smaller than viewport, the zoom action will yield weird coordinates.
+                const zoom = d3
+                    .zoom()
+                    // .scaleExtent([1 / ratio, 1]) // smaller front, larger latter
+                    .translateExtent([
+                        [0, 0],
+                        [width, height]
+                    ]) // world extent
+                    .extent([
+                        [0, 0],
+                        [config.viewWidth, config.viewHeight]
+                    ]) // viewport extent
+                    .on('zoom', onZoom);
+
+                const gBrush = svgMinimap.select('#gBrush')
+
+                function onBrush(event) {
+                    if (event.sourceEvent == null) return;
+                    // prevent zoom invoked event
+                    if (event.sourceEvent && event.sourceEvent.type === "zoom")
+                        return null;
+                    if (Array.isArray(event.selection)) {
+                        const [
+                            [brushX, brushY],
+                            [brushX2, brushY2]
+                        ] = event.selection;
+
+                        const scaleX = minimapScaleX(zoomScale);
+                        const scaleY = minimapScaleY(zoomScale);
+
+                        svgg.call(
+                            zoom.transform,
+                            d3.zoomIdentity.translate(-brushX, -brushY).scale(zoomScale)
+                        );
+                        nowxt = scaleX(-brushX)
+                        nowyt = scaleY(-brushY)
+                        gCam.attr(...ttrans(scaleX(-brushX), scaleY(-brushY), zoomScale));
+                        left_legend.attr(...ttrans(scaleX(-brushX), 0, zoomScale));
+                        top_legend.attr(...ttrans(0, scaleY(-brushY), zoomScale));
+
+                        currentX = -nowxt
+                        currentY = -nowyt
+                    }
+                    console.log('abab')
+                }
+
+                const brush = d3
+                    .brush()
+                    .extent([
+                        [0, 0],
+                        [config._width, config._height]
+                    ])
+                    .on('brush', onBrush);
+
+                //minimap rendering needed
+                svgg.call(zoom);
+                svgMinimap.call(zoom)
+                gBrush.call(brush);
+
+                brush.move(gBrush, [
+                    [0, 0],
+                    [
+                        config._width * config.minimapScale,
+                        config._height * config.minimapScale
+                    ]
+                ]);
+                svgMinimap.selectAll('.handle').remove();
+                svgMinimap.selectAll('.overlay').remove();
+                gCam.attr(...ttrans(0, 0, zoomScale));
+                grid.attr(...ttrans(0, 0, zoomScale));
+                left_legend.attr(...ttrans(0, 0, zoomScale));
+                top_legend.attr(...ttrans(0, 0, zoomScale));
+
+                //UpdateFunctions Part
+                function objectUpdate() { //object == node
+                    node.selectAll("circle")
+                        .data([])
+                        .join("line")
+                    if (obutton.checked == true) {
+                        node.selectAll("circle")
+                            .data(diff[time])
+                            .join("circle")
+                            .attr('class', 'node')
+                            .attr("r", circle)
+                            .attr("selected", false)
+                            .attr("chosen", false)
+                            .attr("stroke-width", 5)
+                            .attr("id", (d, i) => lineage_color(time, i))
+                            .attr("index", (d, i) => i)
+                            .attr("fill", (d, i) => d3.interpolateRainbow((lineage_color(time, i) * 728513 %
+                                320) / 320))
+                            .attr('opacity', 0.5)
+                            .attr("cx", (d, i) => state[time][0][i])
+                            .attr("cy", (d, i) => state[time][2][i])
+                            .on("click", function () {
+                                lineage_lng.selectAll("polyline").attr("opacity", 0.3)
+                                lineage_lng.raise();
+
+                                let lineagelines = lineage_lng.selectAll("polyline").filter((d, i,
+                                                                                             nodes) => {
+                                    return nodes[i].getAttribute("id") == this.getAttribute(
+                                        "id")
+                                })
+                                lineagelines.attr("opacity", 1)
+                                lineagelines.raise()
+
+                                let all_nodes = document.getElementsByClassName("node");
+                                selected_nodes = [this.getAttribute('id')];
+                                toggleRelatedObject();
+                            })
+                            .on("mouseover", function (e, [d, i]) {
+                                let lineagelines = lineage_lng.selectAll("polyline").filter((d, i,
+                                                                                             nodes) => {
+                                    return nodes[i].getAttribute("id") == this.getAttribute(
+                                        "id")
+                                })
+                                this.setAttribute('r', this.getAttribute('r') * 1.2)
+                                lineagelines.attr("stroke-width", 9)
+
+                                let x0 = state[time][1][i];
+                                let x1 = state[time][3][i];
+                                Xhistogram.selectAll('rect').each(function () {
+                                    if (this.getAttribute('x0') <= x0 && x0 <= this
+                                        .getAttribute(
+                                            'x1')) {
+                                        d3.select(this).attr('opacity', 1.0);
+                                    } else {
+                                        d3.select(this).attr('opacity', 0.3);
+                                    }
+                                })
+                                Yhistogram.selectAll('rect').each(function () {
+                                    if (this.getAttribute('x0') <= x1 && x1 <= this
+                                        .getAttribute(
+                                            'x1')) {
+                                        d3.select(this).attr('opacity', 1.0);
+                                    } else {
+                                        d3.select(this).attr('opacity', 0.3);
+                                    }
+                                })
+                                splitXhistogram.selectAll('rect').each(function () {
+                                    if (this.getAttribute('x0') <= x0 && x0 <= this
+                                        .getAttribute(
+                                            'x1')) {
+                                        d3.select(this).attr('opacity', 1.0);
+                                    } else {
+                                        d3.select(this).attr('opacity', 0.3);
+                                    }
+                                })
+                                splitYhistogram.selectAll('rect').each(function () {
+                                    if (this.getAttribute('x0') <= x1 && x1 <= this
+                                        .getAttribute(
+                                            'x1')) {
+                                        d3.select(this).attr('opacity', 1.0);
+                                    } else {
+                                        d3.select(this).attr('opacity', 0.3);
+                                    }
+                                })
+                                this.setAttribute('r', circle * 1.5);
+                            })
+                            .on("mouseout", function () {
+                                let lineagelines = lineage_lng.selectAll("polyline").filter((d, i,
+                                                                                             nodes) => {
+                                    return nodes[i].getAttribute("id") == this.getAttribute(
+                                        "id")
+                                })
+                                this.setAttribute('r', circle)
+                                lineagelines.attr("stroke-width", 3)
+                                splitYhistogram.selectAll('rect').attr('opacity', 0.3);
+                                splitXhistogram.selectAll('rect').attr('opacity', 0.3);
+                                Xhistogram.selectAll('rect').attr('opacity', 0.3);
+                                Yhistogram.selectAll('rect').attr('opacity', 0.3);
+                            })
+                    } else {
+                        node.selectAll("circle")
+                            .data([])
+                            .join("line")
+                            .transition()
+                    }
+                }
+
+                function allpointUpdate(){
+                    ap.selectAll("circle")
+                        .data([])
+                        .join("line")
+                    if (abutton.checked == true) {
+                        for(let i=0; i<time; i++){
+                            for(let j=0; j<last[i].length; j++){
+                                ap.append("circle")
+                                    // .attr('class', 'node')
+                                    .attr("r", circle)
+                                    // .attr("selected", false)
+                                    // .attr("chosen", false)
+                                    // .style("opacity", 0)
+                                    // .style("fill", "none")
+                                    // .style('stroke', 'black')
+                                    // .attr("id", () => lineage_color(i, j))
+                                    // .attr("index", (d, i) => i)
+                                    .attr('fill', 'transparent')
+                                    .attr('stroke', () => d3.interpolateRainbow((lineage_color(i, last[i][j]) * 728513 %
+                                        320) / 320))
+                                    .attr("stroke-width", 3)
+                                    .attr("stroke-dasharray", 4)
+                                    .attr("cx", () => state[i][0][last[i][j]])
+                                    .attr("cy", () => state[i][2][last[i][j]])
+                            }
+                        }
+                    } else {
+                        ap.selectAll("circle")
+                            .data([])
+                            .join("line")
+                            .transition()
+                    }
+                }
+
+                function birthUpdate() {
+                    birth.selectAll("tspan")
+                        .data([])
+                        .join("line")
+                    if (bbutton.checked == true) {
+                        birth.selectAll("tspan")
+                            .data(diff[time])
+                            .join("tspan")
+                            .attr("fill", birth_color)
+                            .style('pointer-events', 'none')
+                            .style('text-shadow', ' -1px -1px 0 #000,1px -1px 0 #000, -1px 1px 0 #000,1px 1px 0 #000')
+                            .text((d, i) => `${d[d.length-1]}(${d[d.length - 2]})`)
+                            .attr("x", (d, i) => state[time][0][i])
+                            .attr("y", (d, i) => Number(state[time][2][i]) + 5)
+                    } else {
+                        birth.selectAll("tspan")
+                            .data([])
+                            .join("line")
+                            .transition()
+                    }
+
+                }
+
+                function VAPNUpdate() {
+                    VAPNline.selectAll("polyline")
+                        .attr("stroke-opacity", 0.5)
+                        .data([])
+                        .join("polyline")
+
+                    if (VAPN.checked == true) {
+                        let point = new Array(diff[time].length)
+                        let time_info = new Array(diff[time].length)
+                        let index_info = new Array(diff[time].length)
+                        let prev_count = 0
+
+                        for (let i = 1; i < time; i++) {
+                            for (let j = 0; j < diff[i].length; j++) {
+                                let k;
+                                for (k = 0; k < diff[i + 1].length; k++) {
+                                    if (parent[i + 1][k] == j) break
+                                }
+                                if (k < diff[i + 1].length) continue
+
+                                time_info[prev_count] = i
+                                index_info[prev_count] = j
+
+                                point[prev_count] = `${state[i][0][j]} ${state[i][2][j]}`
+                                let par = parent[i][j]
+                                for (let k = i - 1;; k--) {
+                                    point[prev_count] = `${state[k][0][par]} ${state[k][2][par]}, ` + point[
+                                        prev_count]
+                                    if (!parent[k][par]) break
+                                    par = parent[k][par]
+                                }
+                                prev_count++;
+                            }
+                        }
+
+                        VAPNline.selectAll("polyline") // TODO
+                            .attr("stroke-opacity", 0.5)
+                            .data(point)
+                            .join("polyline")
+                            .attr("fill", "white")
+                            .attr("fill-opacity", 0)
+                            .attr("stroke", (d, i) => {
+                                if (time_info[i] == undefined) return null
+                                return d3.interpolateRainbow((lineage_color(time_info[i], index_info[i]) *
+                                    728513 %
+                                    320) / 320);
+                            })
+                            .attr("stroke-width", thickness)
+                            .attr("stroke-dasharray", 1)
+                            .attr("points", d => d)
+                    } else {
+                        VAPNline.selectAll("polyline")
+                            .attr("stroke-opacity", 0.5)
+                            .data([])
+                            .join("polyline")
+                    }
+                }
+
+                function lineUpdate() {
+                    line.selectAll("line")
+                        .attr("stroke-opacity", 0.5)
+                        .data([])
+                        .join("line")
+                    if (vbutton.checked == true) {
+                        v_long = 1
+                        line.selectAll("line")
+                            .attr("stroke-opacity", 0.5)
+                            .data(diff[time])
+                            .join("line")
+                            .attr("id", (d, i) => `vector_${lineage_color(time, i)}`)
+                            .attr("stroke-width", thickness)
+                            .attr("stroke", "white")
+                            .attr("x1", (d, i) => state[time][0][i])
+                            .attr("x2", (d, i) => state[time][0][i] + state[time][1][i] * v_long)
+                            .attr("y1", (d, i) => state[time][2][i])
+                            .attr("y2", (d, i) => state[time][2][i] + state[time][3][i] * v_long)
+                            .attr("marker-end", (d, i) => {
+                                if (state[time][1][i] != 0 || state[time][3][i] != 0)
+                                    return "url(#arrow)"
+                            })
+                    } else {
+                        line.selectAll("line")
+                            .attr("stroke-opacity", 0.5)
+                            .data([])
+                            .join("line")
+                    }
+                }
+
+                function routeVectorUpdate() {
+                    return
+                    // console.log(new Date())
+                    route_vector.selectAll("line")
+                        .attr("stroke-opacity", 0.5)
+                        .data([])
+                        .join("line")
+
+                    // console.log(new Date().getMilliseconds())
+                    let pre_vector = Array.from(Array(diff[time].length), () => new Array())
+                    for (let i = 0; i < diff[time].length; i++) {
+                        if (parent[time][i]) {
+                            let par = parent[time][i]
+                            for (let j = time - 1;; j--) {
+                                pre_vector[i].push([state[j][0][par], state[j][1][par], state[j][2][par],
+                                    state[j][3][par]
+                                ])
+                                if (!parent[j][par]) break;
+                                par = parent[j][par]
+                            }
+                        }
+                    }
+                    // console.log(new Date().getMilliseconds())
+
+                    rv_long = 3
+                    for (let j = 0; j < pre_vector.length; j++) {
+                        route_vector.append("g").attr("class", "rv_group")
+                            .selectAll("line")
+                            .data(pre_vector[j])
+                            .join("line")
+                    }
+                    // console.log(new Date().getMilliseconds())
+
+                    route_vector.selectAll("line")
+                        .attr("fill", "white")
+                        .attr("fill-opacity", 0)
+                        .attr("stroke", "green")
+                        .attr("stroke-width", thickness)
+                        .attr("x1", d => d[0])
+                        .attr("y1", d => d[2])
+                        .attr("x2", d => d[0] + d[1] * rv_long)
+                        .attr("y2", d => d[2] + d[3] * rv_long)
+                        .attr("marker-end", (d, i) => {
+                            if (d[1] != 0 || d[3] != 0)
+                                return "url(#arrow_green)"
+                        })
+                    // console.log(new Date().getMilliseconds())
+                }
+
+                function routeUpdate() {
+                    route.selectAll("polyline")
+                        .attr("stroke-opacity", 0.5)
+                        .data([])
+                        .join("polyline")
+
+                    if (rbutton.checked == true) {
+                        let point = new Array(diff[time].length)
+                        for (let i = 0; i < diff[time].length; i++) {
+                            if (parent[time][i] >= 0) {
+                                point[i] = `${state[time][0][i]} ${state[time][2][i]}`
+                                let par = parent[time][i]
+                                for (let j = time - 1;; j--) {
+                                    point[i] = `${state[j][0][par]} ${state[j][2][par]}, ` + point[i];
+                                    if (parent[j][par] >= 0)
+                                        par = parent[j][par]
+                                    else break
+                                }
+                            }
+                        }
+
+                        route.selectAll("polyline")
+                            .attr("stroke-opacity", 0.5)
+                            .data(point)
+                            .join("polyline")
+                            .attr("fill", "white")
+                            .attr("fill-opacity", 0)
+                            .attr("class", (d, i) => `traj_${lineage_color(time, i)}`)
+                            .attr("stroke", (d, i) => {
+                                return d3.interpolateRainbow((lineage_color(time, i) * 728513 %
+                                    320) / 320);
+                            })
+                            .attr("stroke-width", thickness)
+                            .attr("points", d => d)
+                    } else {
+                        route.selectAll("polyline")
+                            .attr("stroke-opacity", 0.5)
+                            .data([])
+                            .join("polyline")
+                    }
+                }
+
+                let xvValues = []
+                let yvValues = []
+
+                // Function for 4 histograms
+                // code: 1. x_vercotr, 2. y_verctor, 3. selected (area) x_vector, 4. selected (area) y_vector
+                function UpdateHistogram(dataset, histogram, xaxis, yaxis, code) {
+                    x = d3.scaleLinear()
+                        .domain([dataset[0].x0, dataset[dataset.length - 1].x1])
+                        .range([margin.left, histogram_size_x - margin.right])
+
+                    y = d3.scaleLinear()
+                        .domain([0, d3.max(dataset, d => d.length)]).nice()
+                        .range([histogram_size_y - margin.bottom, margin.top])
+
+                    xAxis = g => g
+                        .attr("transform", `translate(0,${histogram_size_y - margin.bottom})`)
+                        .call(d3.axisBottom(x).ticks(histogram_size_x / 80).tickSizeOuter(0))
+                        .call(g => g.append("text")
+                            .attr("x", histogram_size_x - margin.right)
+                            .attr("y", -4)
+                            .attr("fill", "currentColor")
+                            .attr("font-weight", "bold")
+                            .attr("text-anchor", "end"))
+                    yAxis = g => g
+                        .attr("transform", `translate(${margin.left},0)`)
+                        .call(d3.axisLeft(y).ticks(histogram_size_x / 40))
+                        .call(g => g.select(".domain").remove())
+                        .call(g => g.select(".tick:last-of-type text").clone()
+                            .attr("x", 4)
+                            .attr("text-anchor", "start")
+                            .attr("font-weight", "bold"))
+
+                    xaxis.call(xAxis)
+                    yaxis.call(yAxis)
+
+                    histogram.selectAll("rect")
+                        .data(dataset)
+                        .join("rect")
+                        .attr("fill", "steelblue")
+                        .attr("opacity", 0.3)
+                        .attr("x", d => x(d.x0) + 1)
+                        .attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
+                        .attr("y", d => y(d.length))
+                        .attr("height", d => y(0) - y(d.length))
+                        .attr("x0", d => d.x0)
+                        .attr("x1", d => d.x1)
+                        .on('click', e => {
+                            splitXhistogram.selectAll("rect").attr("opacity", 0.3);
+                            splitYhistogram.selectAll("rect").attr("opacity", 0.3);
+                            Xhistogram.selectAll("rect").attr("opacity", 0.3);
+                            Yhistogram.selectAll("rect").attr("opacity", 0.3);
+
+                            this_rect = e.srcElement
+                            minv = this_rect.getAttribute("x0")
+                            maxv = this_rect.getAttribute("x1")
+
+                            this_rect.setAttribute("opacity", 1.0);
+
+                            if (code == 1 || code == 2) {
+                                let node_data = document.getElementsByClassName("node");
+                                for (let i = 0; i < node_data.length; i++) {
+                                    this_index = node_data[i].getAttribute("index")
+                                    if (code == 1) {
+                                        if (minv <= state[time][1][this_index] && state[time][1][
+                                            this_index
+                                            ] < maxv) {
+                                            node_data[i].setAttribute("selected", true);
+                                        } else {
+                                            node_data[i].setAttribute("selected", false);
+                                        }
+                                    } else if (code == 2) {
+                                        if (minv <= state[time][3][this_index] && state[time][3][
+                                            this_index
+                                            ] < maxv) {
+                                            node_data[i].setAttribute("selected", true);
+                                        } else {
+                                            node_data[i].setAttribute("selected", false);
+                                        }
+                                    }
+                                }
+                                selected_nodes = Array.from(node_data).filter(el => el.getAttribute('selected') == 'true').map(el => el.getAttribute('id'));
+                                toggleRelatedObject();
+                            } else if (code == 3 || code == 4) {
+                                for (let i = 0; i < splitsel_data.length; i++) {
+                                    this_index = splitsel_data[i].getAttribute("index")
+                                    if (code == 3) {
+                                        if (minv <= state[time][1][this_index] && state[time][1][
+                                            this_index
+                                            ] < maxv) {
+                                            splitsel_data[i].setAttribute("selected", true);
+                                        } else {
+                                            splitsel_data[i].setAttribute("selected", false);
+                                        }
+                                    } else if (code == 4) {
+                                        if (minv <= state[time][3][this_index] && state[time][3][
+                                            this_index
+                                            ] < maxv) {
+                                            splitsel_data[i].setAttribute("selected", true);
+                                        } else {
+                                            splitsel_data[i].setAttribute("selected", false);
+                                        }
+                                    }
+                                }
+                                selected_nodes = Array.from(splitsel_data).filter(el => el.getAttribute('selected') == 'true').map(el => el.getAttribute('id'));
+                                toggleRelatedObject();
+                            }
+                        })
+                        .on('mouseover', e => {
+                            this_rect = e.srcElement
+                            minv = this_rect.getAttribute("x0")
+                            maxv = this_rect.getAttribute("x1")
+
+                            if (code == 1 || code == 2) {
+                                let node_data = document.getElementsByClassName("node");
+                                for (let i = 0; i < node_data.length; i++) {
+                                    this_index = node_data[i].getAttribute("index")
+                                    if (code == 1) {
+                                        if (minv <= state[time][1][this_index] && state[time][1][
+                                            this_index
+                                            ] < maxv)
+                                            node_data[i].setAttribute("r", circle * 1.5)
+                                    } else if (code == 2) {
+                                        if (minv <= state[time][3][this_index] && state[time][3][
+                                            this_index
+                                            ] < maxv)
+                                            node_data[i].setAttribute("r", circle * 1.5)
+                                    }
+                                }
+                            } else if (code == 3 || code == 4) {
+                                for (let i = 0; i < splitsel_data.length; i++) {
+                                    this_index = splitsel_data[i].getAttribute("index")
+                                    if (code == 3) {
+                                        if (minv <= state[time][1][this_index] && state[time][1][
+                                            this_index
+                                            ] < maxv)
+                                            splitsel_data[i].setAttribute("r", circle * 1.5)
+                                    } else if (code == 4) {
+                                        if (minv <= state[time][3][this_index] && state[time][3][
+                                            this_index
+                                            ] < maxv)
+                                            splitsel_data[i].setAttribute("r", circle * 1.5)
+                                    }
+                                }
+                            }
+                            this_rect.setAttribute('fill', 'blue');
+                        })
+                        .on('mouseout', (e) => {
+                            let all_nodes = document.getElementsByClassName("node");
+                            this_rect = e.srcElement;
+
+                            for (let i = 0; i < all_nodes.length; i++)
+                                all_nodes[i].setAttribute("r", circle)
+
+                            this_rect.setAttribute('fill', 'steelblue');
+                        })
+                }
+
+                function UpdateSplitHistogram() {
+                    let splitareas = document.getElementsByClassName('splitarea');
+                    let all_nodes = document.getElementsByClassName("node");
+                    while (splitsel_data.length) splitsel_data.pop()
+
+                    if (splitareas.length === 0) return;
+
+                    let min_x = parseInt(splitareas[0].getAttribute('x'));
+                    let max_x = parseInt(splitareas[0].getAttribute('width')) + min_x;
+                    let min_y = parseInt(splitareas[0].getAttribute('y'));
+                    let max_y = parseInt(splitareas[0].getAttribute('height')) + min_y;
+
+                    for (let i = 0; i < all_nodes.length; i++) {
+                        if (min_x <= all_nodes[i].getAttribute('cx') &&
+                            all_nodes[i].getAttribute('cx') <= max_x &&
+                            min_y <= all_nodes[i].getAttribute('cy') &&
+                            all_nodes[i].getAttribute('cy') <= max_y) {
+                            splitsel_data.push(all_nodes[i]);
+                        }
+
+                    }
+                    while (xvValues.length) xvValues.pop()
+                    while (yvValues.length) yvValues.pop()
+
+                    for (let i = 0; i < splitsel_data.length; i++) {
+                        for (let j = 0; j < state[time][0].length; j++) {
+                            if (state[time][0][j] == splitsel_data[i].getAttribute("cx") && state[time][2][j] ==
+                                splitsel_data[i].getAttribute("cy")) {
+                                xvValues.push(state[time][1][j])
+                                yvValues.push(state[time][3][j])
+                                break;
+                            }
+                        }
+                    }
+
+                    XvectorValue = d3.bin().thresholds(10)(xvValues)
+                    YvectorValue = d3.bin().thresholds(10)(yvValues)
+                    UpdateHistogram(XvectorValue, splitXhistogram, splitXhistogram_xAxis, splitXhistogram_yAxis,
+                        3)
+                    UpdateHistogram(YvectorValue, splitYhistogram, splitYhistogram_xAxis, splitYhistogram_yAxis,
+                        4)
+                }
+
+                // lineage part
+                let lineage_size = {
+                    width: maxtime*10,
+                    height: lineage_id.length*10+100
+                }
+                let lineage_margin = ({
+                    left: 10,
+                    right: 20,
+                    bottom: 20,
+                    top: 20
+                })
+
+                let lnghist_height = 450
+
+                let lng2data = []
+                let longevity = []
+
+                for (i = 0; i < diff.length - 1; i++) {
+                    lng2data[i] = {}
+                    lng2data[i]['time'] = i + 1
+                    lng2data[i]['normal'] = 0
+                    lng2data[i]['birth'] = 0
+                    lng2data[i]['separate'] = 0
+                    for (j = 0; j < diff[i + 1].length; j++) {
+                        if (diff[i + 1][j][diff[i + 1][j].length - 2] == i + 2) {
+                            if (parent[i + 1][j] == null)
+                                lng2data[i]['birth']++
+                            else lng2data[i]['separate']++
+                        } else lng2data[i]['normal']++
+                    }
+                }
+
+                longevity[0] = []
+                for (let i = 1; i < diff.length; i++) {
+                    longevity[i] = []
+                    for (let j = 0; j < diff[i].length; j++) {
+                        for (let k = i + 1; k <= diff.length; k++) {
+                            if (k == diff.length) {
+                                longevity[i][j] = k - 1
+                                break;
+                                4
+                            }
+                            let find = false;
+
+                            // 속도 개선을 위한 코드 수정(Shim) 04.03.2022
+                            function checkExist(arr, val){
+                                return arr.some(
+                                    function(arrval){
+                                        return val === arrval;
+                                    }
+                                );
+                            }
+
+                            find = checkExist(diff[k], diff[i][j]);
+
+
+                            if (!find) {
+                                longevity[i][j] = k - 1
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                const stack = d3.stack()
+                    .keys(["time", "normal", "birth", "separate"])
+                    .order(d3.stackOrderNone)
+                    .offset(d3.stackOffsetNone);
+                let series = stack(lng2data);
+
+                lngx = d3.scaleLinear()
+                    .domain([1, maxtime])
+                    .range([lineage_margin.left, lineage_size.width - lineage_margin.right])
+
+                lngy = d3.scaleLinear()
+                    .domain([0, d3.max(series, d => d3.max(d, d => d[1]))])
+                    .rangeRound([lnghist_height - lineage_margin.bottom, lineage_margin.top])
+
+                lngcolor = d3.scaleOrdinal()
+                    .domain(series.map(d => d.key))
+                    .range(d3.schemeSpectral[series.length])
+                    .unknown("#ccc")
+
+                lngXaxis = g => g
+                    .attr("transform", `translate(0, 0)`)
+                    .call(d3.axisTop(lngx).ticks(lineage_size.width / 8).tickSizeOuter(0))
+                    .call(g => g.append("text")
+                        .attr("x", lineage_size.width - lineage_margin.right)
+                        .attr("y", -4)
+                        .attr("fill", "currentColor")
+                        .attr("font-weight", "bold")
+                        .attr("text-anchor", "end"))
+
+
+                // lngxAxis = g => g
+                //     .attr("transform", `translate(0, ${lnghist_height - lineage_margin.bottom})`)
+                //     .call(d3.axisBottom(lngx).tickSizeOuter(0))
+                //     .call(g => g.selectAll(".domain").remove())
+                lngyAxis = g => g
+                    .attr("transform", `translate(${lineage_margin.left}, 0)`)
+                    .call(d3.axisLeft(lngy).ticks(null, "s"))
+                    .call(g => g.selectAll(".domain").remove())
+
+                // let lc = (lineage_size.width - lineage_margin.right) / diff.length
+                let lc = 10
+                let lineage = d3.select(document.getElementById("lineage"))
+                    .attr("width", lineage_size.width)
+                    .attr("height", lineage_size.height + lnghist_height)
+                    .attr("viewBox", [-lineage_margin.left, -lineage_margin.top, lineage_size.width,
+                        lineage_size.height
+                    ])
+                    .style("overflow-y", "scroll")
+                    .style("height", "1140px")
+
+                function lineage_color(i, j) {
+                    if (parent[i][j] == 0 || parent[i][j]) return lineage_color(i - 1, parent[i][j])
+                    else return lineage_id[i][j]
+                }
+
+                lineage.selectAll('svg').remove();
+                let lineage_lng = lineage.append("svg")
+                    .attr('id', 'lineage-svg')
+                    .attr("width", lineage_size.width)
+                    .attr("height", lineage_size.height)
+                    .attr("viewBox", [-lineage_margin.left, 0, lineage_size.width, lineage_size.height])
+
+                d3.select(document.getElementById("lineageX")).selectAll('svg').remove();
+                lineageXaxis = d3.select(document.getElementById("lineageX"))
+                    .attr("width", lineage_size.width)
+                    .attr("height", 20)
+                    .attr("viewBox", [-lineage_margin.left, -lineage_margin.top, lineage_size.width, 300])
+                    .append("svg")
+                    .attr("width", lineage_size.width)
+                    .attr("height", 20)
+                    .append("g")
+
+                lineageXaxis.call(lngXaxis)
+                    .attr("transform", `translate(${lineage_margin.left},20)`)
+                    .attr('font-size', 8)
+
+                max_y = -1
+                for (let i = 0; i < lineage_id.length; i++) {
+                    for (let j = 0; j < lineage_id[i].length; j++) {
+                        if (!lineage_id[i][j]) continue
+                        let lineagelinepoint =
+                            `${(i+1)*lc},${lineage_id[i][j]*lc} ${i*lc},${lineage_id[i][j]*lc}`
+                        if (parent[i][j] == 0 || parent[i][j]) lineagelinepoint +=
+                            ` ${i*lc},${lineage_id[i-1][parent[i][j]]*lc}`
+                        max_y = Math.max(max_y, lineage_id[i][j] * lc)
+                        let lineageline = lineage_lng.append("polyline")
+                            .attr("stroke-width", 3)
+                            .attr("stroke", () => d3.interpolateRainbow((lineage_color(i, j) * 728513 % 320) /
+                                320))
+                            .attr("fill", "none")
+                            .attr("opacity", 0.3)
+                            .attr("points", lineagelinepoint)
+                            .attr("id", () => lineage_color(i, j))
+                            .attr("class", "lineage")
+                            .on("click", function () {
+                                let node_data = document.getElementsByClassName("node");
+                                for (let i = 0; i < node_data.length; i++) {
+                                    this_index = node_data[i].getAttribute("id")
+                                    if (this_index == this.getAttribute("id")) {
+                                        node_data[i].setAttribute("selected", true);
+                                    } else {
+                                        node_data[i].setAttribute("selected", false);
+                                    }
+                                }
+                                selected_nodes = Array.from(node_data).filter(el => el.getAttribute('selected') == 'true').map(el => el.getAttribute('id'));
+                                toggleRelatedObject();
+
+                                lineage_lng.selectAll("polyline").attr("opacity", 0.3)
+                                lineage_lng.raise();
+
+                                let lineagelines = lineage_lng.selectAll("polyline").filter((d, i,
+                                                                                             nodes) => {
+                                    return nodes[i].getAttribute("id") == this.getAttribute("id")
+                                })
+                                lineagelines.attr("opacity", 1)
+                                lineagelines.raise()
+                            })
+                            .on("mouseover", function () { // highlight all same lineage when clicking
+                                let node_data = document.getElementsByClassName("node");
+                                let lineagelines = lineage_lng.selectAll("polyline").filter((d, i,
+                                                                                             nodes) => {
+                                    return nodes[i].getAttribute("id") == this.getAttribute("id")
+                                })
+
+                                for (let i = 0; i < node_data.length; i++) {
+                                    this_index = node_data[i].getAttribute("id")
+                                    if (this_index == this.getAttribute("id")) {
+                                        node_data[i].setAttribute("r", circle * 1.5);
+                                    }
+                                }
+                                lineagelines.attr("stroke-width", 9)
+                                lineagelines.raise()
+                            })
+                            .on("mouseout", function () {
+                                let node_data = document.getElementsByClassName("node");
+                                let lineagelines = lineage_lng.selectAll("polyline").filter((d, i,
+                                                                                             nodes) => {
+                                    return nodes[i].getAttribute("id") == this.getAttribute("id")
+                                })
+
+                                for (let i = 0; i < node_data.length; i++) {
+                                    node_data[i].setAttribute("r", circle);
+                                }
+                                lineagelines.attr("stroke-width", 3)
+                                lineagelines.raise()
+                            })
+                    }
+                }
+
+                let lineage_current_time = lineage_lng
+                    .append('g')
+                    .append("rect")
+                    .attr("fill", "none")
+                    .attr('x', 10 + 9.98 * (time))
+                    .attr('y', 0)
+                    .attr("width", 1)
+                    .attr("height", max_y)
+                    .attr("stroke", "black")
+                    .attr("stroke-width", 1);
+
+                lineage.attr('height', max_y+50)
+                    .attr("viewBox", [-lineage_margin.left, -lineage_margin.top, lineage_size.width, max_y]);
+                d3.select(document.getElementById('lineage-svg'))
+                    .attr('height', max_y+50)
+                    .attr("viewBox", [-lineage_margin.left, 0, lineage_size.width, max_y]);
+                Update()
+            })
+    }
+    main_proc();
+</script>
+</body>
+
+</html>
