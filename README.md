@@ -9,6 +9,7 @@ The code for the official implementation of **CellTrackVis**.
 CellTrackVis supports a quick and easy analysis of cell movements with relevant information.
 Interconnected views help users effortlessly discover meaningful patterns of cell motions and divisions, and also each component is customizable for various biological tasks.
 
+![](CellTrackVis.gif)
 ## Quick Start
 
 **Requirements:** 
