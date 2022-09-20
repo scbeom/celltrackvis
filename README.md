@@ -49,4 +49,4 @@ python server.py
 ```
 
 ## License
-For academic use, this project is licensed under the GNU Lesser General Public License v3.0 - see the LICENSE file for details. For commercial use, please contact the authors. 
+This project is licensed under the MIT License - see the LICENSE file for details. 
