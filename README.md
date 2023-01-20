@@ -13,7 +13,7 @@ Interconnected views help users effortlessly discover meaningful patterns of cel
 ## Quick Start
 
 **Requirements:** 
-- MAC OS, Linux or Windows
+- macOS, Linux, or Windows
 - Python 3.7+
 
 **Steps of using CellTrackVis:** 
@@ -32,7 +32,7 @@ CellTrackVis
       |...
     |images
       |...
-    |preprocessors
+    |Importers
       |...
 ```
 

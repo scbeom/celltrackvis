@@ -458,7 +458,7 @@
             };
                 xhr.send();
         };
-        len=tif_files.length
+        len = tif_files.length;
 
         for(var i=0;i<len;++i){
             load_img(tif_files[i]);
@@ -478,9 +478,9 @@
                 let dtype = data_str.slice(-3)
                 document.getElementById('new_image').addEventListener('change', (e) => {
 
-                    const files = Array.from(e.target.files).filter(file => /png|jpg/.test(file.name));
+                    const files = Array.from(e.target.files).filter(file => /png|jpg|bmp|pcx|gif/.test(file.name));
                     const tif_files = Array.from(e.target.files).filter(file => /tiff|tif/.test(file.name));
-                    const tif_list = new Array(); //tiff 파일 경로 저장 배열
+                    const tif_list = new Array(); //tiff file path
                     files.sort((a, b) => a.name.localeCompare(b.name));
                     tif_files.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -951,7 +951,7 @@
 
                 }
 
-                //Split mode : vertial, horizontal
+                //Split mode : vertical, horizontal
                 function current_detail_mode() {
                     return document.getElementById('mode-detail').innerText;
                 }
