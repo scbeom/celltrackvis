@@ -32,7 +32,7 @@ CellTrackVis
       |...
     |images
       |...
-    |Importers
+    |importers
       |...
 ```
 
@@ -47,6 +47,8 @@ python server.py
 ```url
 127.0.0.1:8000/celltrackvis.html
 ```
+
+#### Please follow [tutorial](https://scbeom.github.io/ctv_tutorial/) for more details.
 
 ## License
 This project is licensed under the GNU General Public License v3.0 - see the LICENSE file for details. 
